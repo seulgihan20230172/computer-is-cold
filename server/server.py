@@ -98,13 +98,17 @@ class Server:
             sys.exit(1)
 
     def parse_data(self, buf, is_training):
-        temp = int.from_bytes(buf[0:1], byteorder="big", signed=True)
-        humid = int.from_bytes(buf[1:2], byteorder="big", signed=True)
-        power = int.from_bytes(buf[2:4], byteorder="big", signed=True)
-        month = int.from_bytes(buf[4:5], byteorder="big", signed=True)
+        min_temp = int.from_bytes(buf[0:1], byteorder="big", signed=True)
+        min_humid = int.from_bytes(buf[1:2], byteorder="big", signed=True)
+        min_power = int.from_bytes(buf[2:4], byteorder="big", signed=True)
+        monthcycle = int.from_bytes(buf[4:6], byteorder="big", signed=True)
+        discomfort_index = int.from_bytes(buf[6:8], byteorder="big", signed=True)
+        CDD = int.from_bytes(buf[8:10], byteorder="big",signed=True)
+        HDD = int.from_bytes(buf[10:12], byteorder="big", signed=True)
+        month = int.from_bytes(buf[12:13], byteorder="big", signed=True)
 
-        lst = [temp, humid, power, month]
-        logging.info("[temp, humid, power, month] = {}".format(lst))
+        lst = [min_temp, min_humid, min_power, monthcycle, discomfort_index, CDD, HDD, month]
+        logging.info("[min_temp, min_humid, min_power, monthcycle, discomfort_index, CDD, HDD, month] = {}".format(lst))
 
         self.send_instance(lst, is_training)
 

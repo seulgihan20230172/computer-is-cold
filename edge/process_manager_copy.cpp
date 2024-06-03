@@ -10,7 +10,7 @@
 #include "opcode.h"
 using namespace std;
 
-NetworkManager::NetworkManager() 
+NetworkManager::NetworkManager()
 {
   this->sock = -1;
   this->addr = NULL;
@@ -46,28 +46,28 @@ int NetworkManager::getPort()
 
 int NetworkManager::init()
 {
-	struct sockaddr_in serv_addr;
+        struct sockaddr_in serv_addr;
 
-	this->sock = socket(PF_INET, SOCK_STREAM, 0);
-	if (this->sock == FAILURE)
+        this->sock = socket(PF_INET, SOCK_STREAM, 0);
+        if (this->sock == FAILURE)
   {
     cout << "[*] Error: socket() error" << endl;
     cout << "[*] Please try again" << endl;
     exit(1);
   }
 
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr(this->addr);
-	serv_addr.sin_port = htons(this->port);
+        memset(&serv_addr, 0, sizeof(serv_addr));
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_addr.s_addr = inet_addr(this->addr);
+        serv_addr.sin_port = htons(this->port);
 
-	if (connect(this->sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == FAILURE)
+        if (connect(this->sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == FAILURE)
   {
     cout << "[*] Error: connect() error" << endl;
     cout << "[*] Please try again" << endl;
     exit(1);
   }
-	
+
   cout << "[*] Connected to " << this->addr << ":" << this->port << endl;
 
   return sock;
@@ -78,12 +78,12 @@ int NetworkManager::sendData(uint8_t *data, int dlen)
 {
   int sock, tbs, sent, offset, num, jlen;
   unsigned char opcode;
-  uint8_t n[8];
+  uint8_t n[4];
   uint8_t *p;
 
   sock = this->sock;
   // Example) data (processed by ProcessManager) consists of:
-  // Example) min_temp(1 byte) || min_humid(1 byte) || min_power(2 byte) || monthcycle(2 byte) || discomfort_index(2 byte) || CDD(2 byte) || HDD(2 byte) || month(1 byte)
+  // Example) minimum temperature (1 byte) || minimum humidity (1 byte) || minimum power (2 bytes) || month (1 byte)
   // Example) edge -> server: opcode (OPCODE_DATA, 1 byte)
   opcode = OPCODE_DATA;
   tbs = 1; offset = 0;
@@ -95,12 +95,11 @@ int NetworkManager::sendData(uint8_t *data, int dlen)
   }
   assert(offset == tbs);
 
-  // Example) edge -> server
-  tbs = 8; offset = 0;
-  memcpy(n, data,8); //save 8 length data to n
+  // Example) edge -> server: temperature (1 byte) || humidity (1 byte) || power (2 bytes) || month (1 byte)
+  tbs = 5; offset = 0;
   while (offset < tbs)
   {
-    sent = write(sock, n + offset, tbs - offset);
+    sent = write(sock, data + offset, tbs - offset);
     if (sent > 0)
       offset += sent;
   }
@@ -110,7 +109,7 @@ int NetworkManager::sendData(uint8_t *data, int dlen)
 }
 
 // TODO: Please revise or implement this function as you want. You can also remove this function if it is not needed
-uint8_t NetworkManager::receiveCommand() 
+uint8_t NetworkManager::receiveCommand()
 {
   int sock;
   uint8_t opcode;
