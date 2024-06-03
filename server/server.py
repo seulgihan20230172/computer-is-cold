@@ -10,6 +10,8 @@ OPCODE_DATA = 1
 OPCODE_WAIT = 2
 OPCODE_DONE = 3
 OPCODE_QUIT = 4
+ACK_SUCCESS = 5
+ACK_FAIL = 6
 
 class Server:
     def __init__(self, name, algorithm, dimension, index, port, caddr, cport, ntrain, ntest):
@@ -98,23 +100,51 @@ class Server:
             sys.exit(1)
 
     def parse_data(self, buf, is_training):
-        min_temp = int.from_bytes(buf[0:1], byteorder="big", signed=True)
-        min_humid = int.from_bytes(buf[1:2], byteorder="big", signed=True)
-        min_power = int.from_bytes(buf[2:4], byteorder="big", signed=True)
-        monthcycle = int.from_bytes(buf[4:6], byteorder="big", signed=True)
-        discomfort_index = int.from_bytes(buf[6:8], byteorder="big", signed=True)
-        CDD = int.from_bytes(buf[8:10], byteorder="big",signed=True)
-        HDD = int.from_bytes(buf[10:12], byteorder="big", signed=True)
-        month = int.from_bytes(buf[12:13], byteorder="big", signed=True)
+        vectorcode = int.from_bytes(buf[0:2], byteorder="big", signed=True)
+        if vectorcode == '1'{
+            avg_power = int.from_bytes(buf[2:4], byteorder="big", signed=True)
+            monthcycle = int.from_bytes(buf[4:6], byteorder="big", signed=True)
+            discomfort_index = int.from_bytes(buf[6:8], byteorder="big", signed=True)
+            CDD = int.from_bytes(buf[8:10], byteorder="big",signed=True)           
+            HDD = int.from_bytes(buf[10:12], byteorder="big", signed=True)
 
-        lst = [min_temp, min_humid, min_power, monthcycle, discomfort_index, CDD, HDD, month]
-        logging.info("[min_temp, min_humid, min_power, monthcycle, discomfort_index, CDD, HDD, month] = {}".format(lst))
+            lst = [vectorcode, avg_power, monthcycle, discomfort_index, CDD, HDD] 
+            logging.info("[vectorcode, avg_power, monthcycle, discomfort_index, CDD, HDD] = {}".format(lst))
+
+        elif vectorcode == '2'{
+            avg_power = int.from_bytes(buf[2:4], byteorder="big", signed=True)       
+            monthcycle = int.from_bytes(buf[4:6], byteorder="big", signed=True)      
+            discomfort_index = int.from_bytes(buf[6:8], byteorder="big", signed=True)
+            TDD = int.from_bytes(buf[8:10], byteorder="big",signed=True)            
+
+            lst = [vectorcode, avg_power, monthcycle, discomfort_index, TDD]
+            logging.info("[vectorcode, avg_power, monthcycle, discomfort_index, TDD] = {}".format(lst))
+
+        elif vectorcode == '3'{
+            avg_power = int.from_bytes(buf[2:4], byteorder="big", signed=True)  
+            month = int.from_bytes(buf[4:6], byteorder="big", signed=True)
+            discomfort_index = int.from_bytes(buf[6:8], byteorder="big", signed=True)
+            TDD = int.from_bytes(buf[8:10], byteorder="big",signed=True)
+
+            lst = [vectorcode, avg_power, month, discomfort_index, TDD]
+            logging.info("[vectorcode, avg_power, month, discomfort_index, TDD] = {}".format(lst))
 
         self.send_instance(lst, is_training)
 
 
     # TODO: You should implement your own protocol in this function
     # The following implementation is just a simple example
+    def send_with_ack(client, data):
+        try:
+            client.send(data)
+            ack = client.recv(1)
+            ack = int.from_bytes(ack, "big")
+            if ack == AK_SUCCESS:
+                return True
+        except Exception as e:
+            logging.error(f"Sending data failed: {e}")
+        return False
+
     def handler(self, client):
         logging.info("[*] Server starts to process the client's request")
 
@@ -123,15 +153,32 @@ class Server:
 
         while True:
             # opcode (1 byte): 
-            rbuf = client.recv(1)
-            opcode = int.from_bytes(rbuf, "big")
-            logging.debug("[*] opcode: {}".format(opcode))
+            try:
+                rbuf = client.recv(1)
+                if not rbuf:
+                    raise ValueError("No data received")
+                opcode = int.from_bytes(rbuf, "big")
+                logging.debug("[*] opcode: {}".format(opcode))
+                self.parse_data(rbuf, True)
+            except Exception as e:
+                logging.error(f"Error receiving opcode: {e}")
+                send_with_ack(client, int.to_bytes(ACK_FAIL, 1, "big"))
+                continue
 
             if opcode == OPCODE_DATA:
                 logging.info("[*] data report from the edge")
-                rbuf = client.recv(5)
                 logging.debug("[*] received buf: {}".format(rbuf))
-                self.parse_data(rbuf, True)
+                try:
+                    rbuf = client.recv(10)
+                    logging.info("[*] data report from the edge")
+                    logging.debug("[*] received buf: {}".format(rbuf))
+                    send_with_ack(client, int.to_bytes(ACK_SUCCESS, 1, "big"))
+                    if not rbuf:
+                        raise ValueError("No data received")
+                except Exception as e:
+                    logging.error(f"Error receiving data: {e}")
+                    send_with_ack(client, in.to_bytes(ACK_FAIL, 1 , "big"))
+                
             else:
                 logging.error("[*] invalid opcode")
                 logging.error("[*] please try again")
@@ -167,7 +214,7 @@ class Server:
 
             if opcode == OPCODE_DATA:
                 logging.info("[*] data report from the edge")
-                rbuf = client.recv(5)
+                rbuf = client.recv(10)
                 logging.debug("[*] received buf: {}".format(rbuf))
                 self.parse_data(rbuf, False)
             else:
