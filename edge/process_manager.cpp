@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <ctime>
+#include <math.h>
 using namespace std;
 
 ProcessManager::ProcessManager()
@@ -28,9 +29,13 @@ uint8_t *ProcessManager::processData(DataSet *ds, int *dlen)
   PowerData *pdata;
   char buf[BUFLEN];
   ret = (uint8_t *)malloc(BUFLEN);
-  int tmp, min_humid, min_temp, min_power, month;
+  int month;
+  float monthcycle, avg_temp, avg_humid, discomfort_index, CDD, HDD
   time_t ts;
   struct tm *tm;
+
+  const float Tc_target = 24.4 // https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.kmib.co.kr%2Farticle%2Fview.asp%3Farcid%3D0010819416&psig=AOvVaw2yIKpm3NqgKfKFBh6xHZQI&ust=1717437373210000&source=images&cd=vfe&opi=89978449&ved=0CBQQjhxqFwoTCJCjoPa-vYYDFQAAAAAdAAAAABAb
+  const float Th_target = 23 // no reference :(
 
   tdata = ds->getTemperatureData();
   hdata = ds->getHumidityData();
@@ -38,44 +43,56 @@ uint8_t *ProcessManager::processData(DataSet *ds, int *dlen)
 
   // Example) I will give the minimum daily temperature (1 byte), the minimum daily humidity (1 byte), 
   // the minimum power data (2 bytes), the month value (1 byte) to the network manager
-  
-  // Example) getting the minimum daily temperature
-  min_temp = (int) tdata->getMin();
 
-  // Example) getting the minimum daily humidity
-  min_humid = (int) hdata->getMin();
-
-  // Example) getting the minimum power value
-  min_power = 10000;
-  for (int i=0; i<num; i++)
-  {
-    house = ds->getHouseData(i);
-    pdata = house->getPowerData();
-    tmp = (int)pdata->getValue();
-
-    if (tmp < min_power)
-      min_power = tmp;
-  }
-
-  // Example) getting the month value from the timestamp
+  // getting the month value from the timestamp
   ts = ds->getTimestamp();
   tm = localtime(&ts);
   month = tm->tm_mon + 1;
 
-  // Example) initializing the memory to send to the network manager
+  const float PI = 3.1415926;
+
+  monthcycle = -cos((month-1)/12 * 2 * PI)
+
+  //
+
+  avg_temp = (float) tdata->getValue();
+
+  avg_humid = (float) hdata->getValue();
+
+  discomfort_index = 1.8 * avg_temp - 0.55 * (1 - avg_humid) * (1.8 * avg_temp - 26) + 32
+
+  //
+
+  if (avg_temp > Tc_target){
+    CDD = avg_temp - Tc_target
+  }
+  else{
+    CDD = 0
+  }
+
+  //
+
+  if (avg_temp < Th_target){
+    HDD = Th_target - avg_temp
+  }
+  else{
+    HDD = 0
+  }
+
+  // initializing the memory to send to the network manager
   memset(ret, 0, BUFLEN);
   *dlen = 0;
   p = ret;
 
   // Example) saving the values in the memory
-  VAR_TO_MEM_1BYTE_BIG_ENDIAN(min_temp, p);
-  *dlen += 1;
-  VAR_TO_MEM_1BYTE_BIG_ENDIAN(min_humid, p);
-  *dlen += 1;
-  VAR_TO_MEM_2BYTES_BIG_ENDIAN(min_power, p);
+  VAR_TO_MEM_2BYTES_BIG_ENDIAN(monthcycle, p);
   *dlen += 2;
-  VAR_TO_MEM_1BYTE_BIG_ENDIAN(month, p);
-  *dlen += 1;
+  VAR_TO_MEM_2BYTES_BIG_ENDIAN(discomfort_index, p);
+  *dlen += 2;
+  VAR_TO_MEM_2BYTES_BIG_ENDIAN(CDD, p);
+  *dlen += 2;
+  VAR_TO_MEM_2BYTES_BIG_ENDIAN(HDD, p);
+  *dlen += 2;
 
   return ret;
 }
