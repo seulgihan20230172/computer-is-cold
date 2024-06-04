@@ -76,10 +76,11 @@ int NetworkManager::init()
 // TODO: You should revise the following code
 int NetworkManager::sendData(uint8_t *data, int dlen)
 {
-  int sock, tbs, sent, offset, num, jlen;
+  int sock, tbs, sent, offset;
+  // int num, jlen;
   unsigned char opcode;
-  uint8_t n[8];
-  uint8_t *p;
+  uint8_t n[dlen];
+  //uint8_t *p;
 
   sock = this->sock;
   // Example) data (processed by ProcessManager) consists of:
@@ -96,8 +97,8 @@ int NetworkManager::sendData(uint8_t *data, int dlen)
   assert(offset == tbs);
 
   // Example) edge -> server
-  tbs = 8; offset = 0;
-  memcpy(n, data,8); //save 8 length data to n
+  tbs = dlen; offset = 0;
+  memcpy(n, data,dlen); //save 8 length data to n
   while (offset < tbs)
   {
     sent = write(sock, n + offset, tbs - offset);
@@ -114,7 +115,7 @@ uint8_t NetworkManager::receiveCommand()
 {
   int sock;
   uint8_t opcode;
-  uint8_t *p;
+  //uint8_t *p;
 
   sock = this->sock;
   opcode = OPCODE_WAIT;
@@ -125,4 +126,25 @@ uint8_t NetworkManager::receiveCommand()
   assert(opcode == OPCODE_DONE || opcode == OPCODE_QUIT) ;
 
   return opcode;
+}
+
+int main() {
+    // Create a NetworkManager instance
+    NetworkManager networkManager;
+
+    // Set address and port
+    const char* addr = "127.0.0.1"; // Example address
+    int port = 8080; // Example port
+    networkManager.setAddress(addr);
+    networkManager.setPort(port);
+
+    // Initialize and connect to the server
+    int sock = networkManager.init();
+    
+    // Additional logic for sending/receiving data can be added here
+    
+    // Close the socket when done
+    close(sock);
+
+    return 0;
 }
